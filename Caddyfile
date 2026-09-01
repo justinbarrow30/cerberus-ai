@@ -1,0 +1,18 @@
+# CerberusAI reverse proxy — clean HTTPS, no port, no "localhost".
+#
+# Set the domain your SOC will use in a .env file next to docker-compose.https.yml:
+#   CERBERUS_DOMAIN=soc.yourcompany.com
+#
+# Then: docker compose -f docker-compose.https.yml up -d
+# Analysts browse to https://soc.yourcompany.com and log in.
+
+{$CERBERUS_DOMAIN:cerberus.local} {
+    # Internal hostname (e.g. soc.company.local): keep `tls internal` — Caddy issues
+    #   a cert from its own CA. Trust that CA on your endpoints, or replace this line
+    #   with your corporate cert:  tls /etc/caddy/cert.pem /etc/caddy/key.pem
+    # Public, internet-resolvable domain: DELETE the `tls internal` line and Caddy
+    #   auto-provisions a free, trusted Let's Encrypt certificate.
+    tls internal
+
+    reverse_proxy cerberus:8787
+}

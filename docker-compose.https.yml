@@ -1,0 +1,40 @@
+# CerberusAI — production deploy with HTTPS on a clean domain (no :8787).
+#
+#   1) create a .env here:   echo "CERBERUS_DOMAIN=soc.yourcompany.com" > .env
+#   2) docker compose -f docker-compose.https.yml up -d
+#   3) analysts open https://soc.yourcompany.com and sign in
+#
+# CerberusAI itself is NOT published to the host — only Caddy is exposed, and it
+# terminates TLS and proxies to the app. That's the ACAS/Tenable.sc model: one
+# server, one HTTPS address, everyone logs in.
+services:
+  cerberus:
+    build: .
+    image: cerberus-ai:latest
+    container_name: cerberus-ai
+    expose:
+      - "8787"                 # internal only; reached via Caddy, not the host
+    volumes:
+      - cerberus-data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: cerberus-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CERBERUS_DOMAIN=${CERBERUS_DOMAIN:-cerberus.local}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - cerberus
+    restart: unless-stopped
+
+volumes:
+  cerberus-data:
+  caddy-data:
+  caddy-config:

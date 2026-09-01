@@ -22,6 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import llm
+from auth import COOKIE_NAME, SESSION_TTL, Auth
 from config import is_configured, load_config, save_config
 from siem import get_adapter
 
@@ -29,6 +30,36 @@ APP_DIR = Path(__file__).resolve().parent
 VERDICTS = Path(os.environ.get("CERBERUS_VERDICTS", APP_DIR / "outputs" / "verdicts.jsonl"))
 
 app = FastAPI(title="CerberusAI Operations Platform")
+_auth = Auth()
+
+# --- ACAS-style access gate: log in to reach the console ---------------------
+_PUBLIC = {"/login", "/api/login"}
+_SETUP = {"/setup", "/api/test-connection", "/api/test-llm", "/api/save-config"}
+
+
+@app.middleware("http")
+async def _auth_gate(request: Request, call_next):
+    path = request.url.path
+    user = _auth.session_user(request.cookies.get(COOKIE_NAME))
+    setup_open = not _auth.any_user_exists()   # first run: setup is reachable without a login
+    if path in _PUBLIC:
+        allowed = True
+    elif path in _SETUP:
+        allowed = setup_open or (user is not None and user.get("role") == "admin")
+    else:
+        allowed = user is not None
+    if allowed:
+        if user:
+            request.state.user = user
+        return await call_next(request)
+    if path.startswith("/api/"):
+        return JSONResponse({"error": "authentication required"}, status_code=401)
+    return RedirectResponse("/setup" if setup_open else "/login")
+
+
+def _current_user(request: Request) -> dict | None:
+    return _auth.session_user(request.cookies.get(COOKIE_NAME))
+
 
 # --- Self-launch: the poller runs as a child process once configured ---------
 _poller_proc: subprocess.Popen | None = None
@@ -186,7 +217,10 @@ def index():
 
 @app.get("/setup", response_class=HTMLResponse)
 def setup_page() -> str:
-    return SETUP_PAGE
+    # first_run gates the "create admin" step; configured hides SIEM/AI when this
+    # is an existing deployment just adding the login.
+    page = SETUP_PAGE.replace("__FIRST_RUN__", "true" if not _auth.any_user_exists() else "false")
+    return page.replace("__CONFIGURED__", "true" if is_configured() else "false")
 
 
 @app.post("/api/test-connection")
@@ -219,10 +253,13 @@ async def api_test_llm(req: Request) -> JSONResponse:
 async def api_save_config(req: Request) -> JSONResponse:
     """Persist config.json and self-launch the engine — the last wizard step."""
     body = await req.json()
-    siem = body.get("siem", {})
-    ai = body.get("ai", {})
-    cfg = {
-        "siem": {
+    existing = load_config() if is_configured() else {}
+    cfg = {}
+    # Only overwrite a section if the wizard actually sent it — so an existing
+    # deployment can add the login step without re-entering SIEM/AI.
+    if body.get("siem"):
+        siem = body["siem"]
+        cfg["siem"] = {
             "provider": siem.get("provider", "opensearch"),
             "url": siem.get("url", "").rstrip("/"),
             "user": siem.get("user", ""),
@@ -230,18 +267,81 @@ async def api_save_config(req: Request) -> JSONResponse:
             "verify_tls": bool(siem.get("verify_tls", False)),
             "index": siem.get("index", "wazuh-alerts-*"),
             "min_level": int(siem.get("min_level", 5)),
-        },
-        "ai": {
+        }
+    else:
+        cfg["siem"] = existing.get("siem", {})
+    if body.get("ai"):
+        ai = body["ai"]
+        cfg["ai"] = {
             "provider": ai.get("provider", "anthropic"),
             "model": (ai.get("model") or "").strip(),
             "api_key": (ai.get("api_key") or "").strip(),
             "endpoint": (ai.get("endpoint") or "").strip(),
             "api_version": (ai.get("api_version") or "").strip(),
-        },
-    }
+        }
+    else:
+        cfg["ai"] = existing.get("ai", {})
     save_config(cfg)
+    resp = JSONResponse({"ok": True})
+    # First run: create the admin account and sign them straight in (ACAS-style).
+    if not _auth.any_user_exists():
+        admin = body.get("admin", {})
+        ok, msg = _auth.create_user(admin.get("username", ""), admin.get("password", ""), role="admin")
+        if not ok:
+            return JSONResponse({"ok": False, "message": msg})
+        token = _auth.start_session((admin.get("username") or "").strip())
+        resp.set_cookie(COOKIE_NAME, token, httponly=True, samesite="lax", max_age=SESSION_TTL)
     ensure_poller_running()
-    return JSONResponse({"ok": True})
+    return resp
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page() -> str:
+    return LOGIN_PAGE
+
+
+@app.post("/api/login")
+async def api_login(req: Request) -> JSONResponse:
+    body = await req.json()
+    username = (body.get("username") or "").strip()
+    if _auth.verify(username, body.get("password") or ""):
+        token = _auth.start_session(username)
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie(COOKIE_NAME, token, httponly=True, samesite="lax", max_age=SESSION_TTL)
+        return resp
+    return JSONResponse({"ok": False, "message": "Invalid username or password."})
+
+
+@app.post("/api/logout")
+async def api_logout(req: Request) -> JSONResponse:
+    _auth.end_session(req.cookies.get(COOKIE_NAME))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(COOKIE_NAME)
+    return resp
+
+
+@app.get("/api/me")
+def api_me(req: Request) -> JSONResponse:
+    return JSONResponse(_current_user(req) or {})
+
+
+@app.get("/api/users")
+def api_users(req: Request) -> JSONResponse:
+    u = _current_user(req)
+    if not u or u.get("role") != "admin":
+        return JSONResponse({"error": "admin only"}, status_code=403)
+    return JSONResponse({"users": _auth.list_users()})
+
+
+@app.post("/api/users")
+async def api_add_user(req: Request) -> JSONResponse:
+    u = _current_user(req)
+    if not u or u.get("role") != "admin":
+        return JSONResponse({"error": "admin only"}, status_code=403)
+    body = await req.json()
+    ok, msg = _auth.create_user(body.get("username", ""), body.get("password", ""),
+                                role=body.get("role", "analyst"))
+    return JSONResponse({"ok": ok, "message": msg})
 
 
 PAGE = r"""<!doctype html>
@@ -423,6 +523,7 @@ PAGE = r"""<!doctype html>
   <div class="readout"><b id="s-ok">0</b><em>AUTO-CLOSED</em></div>
   <div class="readout"><b id="s-total">0</b><em>ANALYZED</em></div>
   <div class="status"><i></i>OPERATIONAL</div>
+  <div id="userbar" style="display:flex;align-items:center;gap:10px;margin-left:16px;padding-left:16px;border-left:1px solid #191C22"></div>
 </header>
 
 <main>
@@ -510,6 +611,50 @@ async function tick(){
   if(changed){renderStream();renderDetail();}
 }
 tick();setInterval(tick,5000);
+
+// --- account / team (ACAS-style multi-user) ---
+const HBTN="font:600 11.5px 'Archivo';color:#C8CCD4;background:#181B21;border:1px solid #2A2E36;border-radius:5px;padding:5px 10px;cursor:pointer;letter-spacing:.02em";
+async function loadUser(){
+  try{const me=await(await fetch('/api/me')).json(); if(!me.username) return;
+    const admin=me.role==='admin'; const bar=document.getElementById('userbar');
+    bar.innerHTML=`<span class="mono" style="font-size:11.5px;color:#8A909C;letter-spacing:.02em">${esc(me.username)}${admin?' · ADMIN':''}</span>`
+      +(admin?`<button style="${HBTN}" onclick="openTeam()">Team</button>`:'')
+      +`<button style="${HBTN}" onclick="logout()">Sign out</button>`;
+  }catch(e){}
+}
+async function logout(){await fetch('/api/logout',{method:'POST'});window.location='/login';}
+async function openTeam(){
+  let list=[]; try{list=(await(await fetch('/api/users')).json()).users||[];}catch(e){}
+  const rows=list.map(u=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px"><span class="mono">${esc(u.username)}</span><span style="color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.08em">${esc(u.role)}</span></div>`).join('');
+  const ov=document.createElement('div');
+  ov.style.cssText="position:fixed;inset:0;background:rgba(10,12,16,.55);display:grid;place-items:center;z-index:100";
+  ov.innerHTML=`<div style="background:#fff;border:1px solid var(--line);border-radius:14px;width:400px;max-width:92vw;padding:24px;box-shadow:0 30px 70px rgba(15,23,42,.25)">
+    <div style="font:800 16px 'Archivo';letter-spacing:-0.01em">Team</div>
+    <div style="color:var(--faint);font-size:12.5px;margin:3px 0 16px">Analysts who can sign in to this console.</div>
+    <div>${rows||'<div style="color:var(--faint);font-size:13px">No accounts yet.</div>'}</div>
+    <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+      <div class="lbl" style="margin-bottom:10px">Add analyst</div>
+      <input id="nu" placeholder="username" class="mono" style="width:100%;padding:9px 11px;border:1px solid var(--line2);border-radius:8px;font-size:13px;margin-bottom:8px">
+      <input id="np" type="password" placeholder="password (min 8 chars)" class="mono" style="width:100%;padding:9px 11px;border:1px solid var(--line2);border-radius:8px;font-size:13px">
+      <div id="tmsg" class="mono" style="font-size:12px;min-height:16px;margin-top:8px"></div>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button style="${HBTN};color:#fff;background:var(--ink);border-color:var(--ink);flex:1;padding:9px" onclick="addAnalyst(this)">Add analyst</button>
+        <button style="${HBTN};flex:0 0 auto;padding:9px 14px" onclick="this.closest('[style*=fixed]').remove()">Close</button>
+      </div>
+    </div></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+}
+async function addAnalyst(btn){
+  const u=document.getElementById('nu').value.trim(),p=document.getElementById('np').value,m=document.getElementById('tmsg');
+  m.style.color='var(--faint)';m.textContent='Adding…';btn.disabled=true;
+  try{const r=await(await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})})).json();
+    m.style.color=r.ok?'var(--ok)':'var(--esc)';m.textContent=(r.ok?'✓ ':'✕ ')+(r.message||'');
+    if(r.ok){setTimeout(openTeamRefresh,700);}}catch(e){m.textContent='Error';}
+  btn.disabled=false;
+}
+function openTeamRefresh(){const o=document.querySelector('[style*=fixed]');if(o)o.remove();openTeam();}
+loadUser();
 </script>
 </body></html>"""
 
@@ -621,20 +766,51 @@ SETUP_PAGE = r"""<!doctype html>
     <div class="note"><b>Data notice:</b> To investigate an alert, CerberusAI sends the relevant alert text to the AI provider you pick, using <b>your</b> key. A <b>private</b> deployment (Azure in your tenant, or a self-hosted / gateway endpoint) keeps that data inside your environment; a public SaaS API (OpenAI, Gemini, DeepSeek) sends it to that vendor — one you've already vetted. It never writes to your systems. Note: tool-calling models (GPT-4, Claude, Gemini Pro class) give the best triage.</div>
   </div>
 
+  <div class="card" id="admin-card">
+    <div class="step"><span class="n">3</span><h2>Create your admin account</h2></div>
+    <label>Admin username</label>
+    <input id="adminuser" oninput="refresh()" autocomplete="off" placeholder="e.g. soc-admin">
+    <div class="row">
+      <div><label>Password</label><input id="adminpw" type="password" oninput="refresh()" autocomplete="new-password"></div>
+      <div><label>Confirm password</label><input id="adminpw2" type="password" oninput="refresh()" autocomplete="new-password"></div>
+    </div>
+    <div class="status" id="s-admin"></div>
+    <div class="note">This is how you sign in to the console. Add analyst accounts for your team once you're in.</div>
+  </div>
+
   <button class="launch" id="launch" disabled onclick="launch()">Initialize CerberusAI</button>
-  <div class="foot" id="foot">Complete both steps to activate.</div>
+  <div class="foot" id="foot">Complete the steps above to activate.</div>
 </main>
 <script>
 let siemOk=false, keyOk=false;
+const FIRST_RUN = __FIRST_RUN__;
+const CONFIGURED = __CONFIGURED__;
 const $=id=>document.getElementById(id);
+if(!FIRST_RUN && $('admin-card')) $('admin-card').style.display='none';
+if(CONFIGURED){
+  const cards=document.querySelectorAll('.card');
+  if(cards[0]) cards[0].style.display='none';   // SIEM (already connected)
+  if(cards[1]) cards[1].style.display='none';   // AI (already connected)
+  siemOk=true; keyOk=true;
+  const h=document.querySelector('h1'); if(h) h.textContent='Set up your sign-in';
+  const s=document.querySelector('.sub'); if(s) s.textContent='This deployment is already connected — just create your admin account to secure the console.';
+}
+function adminBody(){return{username:$('adminuser').value.trim(),password:$('adminpw').value};}
+function adminValid(){
+  if(!FIRST_RUN) return true;
+  const u=$('adminuser').value.trim(),p=$('adminpw').value,p2=$('adminpw2').value;
+  if(!u||!p){setStatus($('s-admin'),'','');return false;}
+  if(p.length<8){setStatus($('s-admin'),'err','Password must be at least 8 characters.');return false;}
+  if(p!==p2){setStatus($('s-admin'),'err','Passwords do not match.');return false;}
+  setStatus($('s-admin'),'ok','Looks good.');return true;}
 function onProvider(){const o=$('provider').selectedOptions[0];$('index').value=o.dataset.index;}
 onProvider();
 function siemBody(){return{provider:$('provider').value,url:$('url').value.trim(),user:$('user').value.trim(),
   password:$('password').value,index:$('index').value.trim(),min_level:parseInt($('minlevel').value||'5'),
   verify_tls:$('verify').checked};}
 function setStatus(el,cls,msg){el.className='status '+cls;el.textContent=msg;}
-function refresh(){$('launch').disabled=!(siemOk&&keyOk);
-  $('foot').textContent=(siemOk&&keyOk)?'Ready — click to activate.':'Complete both steps to activate.';}
+function refresh(){const ready=siemOk&&keyOk&&adminValid();$('launch').disabled=!ready;
+  $('foot').textContent=ready?'Ready — click to activate.':'Complete the steps above to activate.';}
 async function testSiem(){setStatus($('s-siem'),'wait','Testing connection…');siemOk=false;refresh();
   try{const r=await(await fetch('/api/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(siemBody())})).json();
     siemOk=r.ok;setStatus($('s-siem'),r.ok?'ok':'err',(r.ok?'✓ ':'✕ ')+r.message);}catch(e){setStatus($('s-siem'),'err','✕ '+e);}refresh();}
@@ -649,11 +825,75 @@ function aiBody(){return{provider:$('aiprovider').value,model:$('aimodel').value
 async function testLLM(){setStatus($('s-key'),'wait','Verifying AI connection…');keyOk=false;refresh();
   try{const r=await(await fetch('/api/test-llm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ai:aiBody()})})).json();
     keyOk=r.ok;setStatus($('s-key'),r.ok?'ok':'err',(r.ok?'✓ ':'✕ ')+r.message);}catch(e){setStatus($('s-key'),'err','✕ '+e);}refresh();}
-async function launch(){$('launch').disabled=true;$('foot').textContent='Initializing engine…';
-  const payload={siem:siemBody(),ai:aiBody()};
+async function launch(){if(!adminValid())return;$('launch').disabled=true;$('foot').textContent='Initializing engine…';
+  const payload={};if(!CONFIGURED){payload.siem=siemBody();payload.ai=aiBody();}if(FIRST_RUN)payload.admin=adminBody();
   try{const r=await(await fetch('/api/save-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).json();
     if(r.ok){$('foot').textContent='Launching operations console…';setTimeout(()=>window.location='/',1200);}
     else{$('foot').textContent='Save failed.';$('launch').disabled=false;}}
   catch(e){$('foot').textContent='Error: '+e;$('launch').disabled=false;}}
+</script>
+</body></html>"""
+
+
+LOGIN_PAGE = r"""<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CerberusAI — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#F5F6F8;--card:#fff;--ink:#0A0C10;--body:#4A4F59;--faint:#9CA1AC;--line:#E5E7EC;--line2:#D6D9E0;--esc:#E11900;--ok:#0E7A46}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+    font-family:'Archivo',system-ui,sans-serif;letter-spacing:-0.01em;display:grid;place-items:center}
+  .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:0}
+  .box{width:370px;max-width:92vw}
+  .brand{display:flex;align-items:center;gap:11px;justify-content:center;margin-bottom:22px}
+  .mark{width:34px;height:34px;background:#0A0C10;border-radius:9px;display:grid;place-items:center}
+  .mark svg{width:19px;height:19px}
+  .wm{font-weight:900;font-size:21px;letter-spacing:-0.03em}.wm span{color:var(--esc)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 26px 24px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04),0 18px 44px rgba(15,23,42,.07)}
+  h1{font-size:16px;font-weight:800;letter-spacing:-0.01em;margin:0 0 3px;text-align:center}
+  .sub{text-align:center;color:var(--faint);font-size:12.5px;margin:0 0 22px}
+  label{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:14px 0 6px}
+  input{width:100%;padding:11px 13px;border:1px solid var(--line2);border-radius:9px;font-size:14px;
+    font-family:'IBM Plex Mono',monospace;background:#fff;color:var(--ink)}
+  input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(10,12,16,.08)}
+  button{width:100%;margin-top:20px;padding:13px;border:none;border-radius:10px;background:var(--ink);color:#fff;
+    font-family:'Archivo';font-weight:800;font-size:14px;cursor:pointer;letter-spacing:.01em}
+  button:hover{background:#1a1e26}button:disabled{background:#C9CDD5;cursor:not-allowed}
+  .err{margin-top:14px;min-height:16px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--esc);text-align:center}
+  .foot{text-align:center;color:var(--faint);font-size:11px;margin-top:18px}
+</style></head>
+<body>
+  <div class="box">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.6 4.5 5.6v5.7c0 4.6 3.2 7.6 7.5 9 4.3-1.4 7.5-4.4 7.5-9V5.6L12 2.6Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.7 12.2l2.3 2.3 4.3-4.6" stroke="#E11900" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="wm">CERBERUS<span>/</span>AI</span>
+    </div>
+    <div class="card">
+      <h1>Sign in</h1>
+      <p class="sub">Operations console access</p>
+      <form onsubmit="return signin(event)">
+        <label>Username</label>
+        <input id="u" autocomplete="username" autofocus>
+        <label>Password</label>
+        <input id="p" type="password" autocomplete="current-password">
+        <button id="btn" type="submit">Sign in</button>
+        <div class="err" id="err"></div>
+      </form>
+    </div>
+    <div class="foot mono">CerberusAI · autonomous SOC</div>
+  </div>
+<script>
+async function signin(e){e.preventDefault();const b=document.getElementById('btn');const err=document.getElementById('err');
+  b.disabled=true;err.textContent='';
+  try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})})).json();
+    if(r.ok){window.location='/';}else{err.textContent=r.message||'Sign in failed.';b.disabled=false;}}
+  catch(ex){err.textContent='Error: '+ex;b.disabled=false;}
+  return false;}
 </script>
 </body></html>"""

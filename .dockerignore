@@ -5,5 +5,7 @@ __pycache__/
 config.json
 cerberus_memory.db
 cerberus_memory.db-*
+cerberus_users.db
+cerberus_users.db-*
 outputs/
 .git/

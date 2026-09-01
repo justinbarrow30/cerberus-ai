@@ -15,7 +15,8 @@ COPY . .
 # so a container restart never loses the learned network memory.
 ENV CERBERUS_CONFIG=/data/config.json \
     CERBERUS_MEMORY_DB=/data/cerberus_memory.db \
-    CERBERUS_VERDICTS=/data/verdicts.jsonl
+    CERBERUS_VERDICTS=/data/verdicts.jsonl \
+    CERBERUS_USERS_DB=/data/cerberus_users.db
 RUN mkdir -p /data
 
 EXPOSE 8787
