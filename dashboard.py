@@ -258,16 +258,16 @@ async def api_save_config(req: Request) -> JSONResponse:
     # Only overwrite a section if the wizard actually sent it — so an existing
     # deployment can add the login step without re-entering SIEM/AI.
     if body.get("siem"):
-        siem = body["siem"]
-        cfg["siem"] = {
-            "provider": siem.get("provider", "opensearch"),
-            "url": siem.get("url", "").rstrip("/"),
-            "user": siem.get("user", ""),
-            "password": siem.get("password", ""),
-            "verify_tls": bool(siem.get("verify_tls", False)),
-            "index": siem.get("index", "wazuh-alerts-*"),
-            "min_level": int(siem.get("min_level", 5)),
-        }
+        # Pass provider-specific fields through as-is (OpenSearch uses url/index;
+        # Sentinel uses tenant/client/workspace), normalizing the shared ones.
+        siem = dict(body["siem"])
+        siem["provider"] = siem.get("provider", "opensearch")
+        siem["min_level"] = int(siem.get("min_level", 5))
+        if "url" in siem:
+            siem["url"] = (siem.get("url") or "").rstrip("/")
+        if "verify_tls" in siem:
+            siem["verify_tls"] = bool(siem.get("verify_tls", False))
+        cfg["siem"] = siem
     else:
         cfg["siem"] = existing.get("siem", {})
     if body.get("ai"):
@@ -702,6 +702,8 @@ SETUP_PAGE = r"""<!doctype html>
   .note{margin-top:14px;font-size:12px;line-height:1.5;color:var(--body);background:#F5F6FF;
     border:1px solid #E0E3FF;border-left:3px solid var(--accent);border-radius:6px;padding:10px 12px}
   .note b{color:var(--ink)}
+  .fhint{font-size:12px;line-height:1.5;color:var(--faint);margin:6px 0 2px}
+  .fhint .mono{color:var(--body)}
   a{color:var(--accent);text-decoration:none;font-weight:600}
   .launch{width:100%;margin-top:6px;padding:15px;border:none;border-radius:10px;background:var(--ink);color:#fff;
     font-weight:800;font-size:15px;letter-spacing:.02em;cursor:pointer}
@@ -721,21 +723,43 @@ SETUP_PAGE = r"""<!doctype html>
       <option value="wazuh" data-index="wazuh-alerts-*">Wazuh Indexer (OpenSearch)</option>
       <option value="elastic" data-index=".alerts-security.alerts-*">Elastic Security</option>
       <option value="security-onion" data-index="*:so-*">Security Onion</option>
+      <option value="sentinel">Microsoft Sentinel</option>
     </select>
-    <label>Indexer / API Base URL</label>
-    <input id="url" placeholder="https://your-siem-host:9200" autocomplete="off">
-    <div class="row">
-      <div><label>Username</label><input id="user" placeholder="admin" autocomplete="off"></div>
-      <div><label>Password / API token</label><input id="password" type="password" autocomplete="off"></div>
+
+    <div id="os-fields">
+      <label>SIEM URL</label>
+      <input id="url" placeholder="https://your-siem-host:9200" autocomplete="off">
+      <div class="fhint">The search / indexer API endpoint, not the web dashboard. Wazuh is usually port <span class="mono">9200</span>.</div>
+      <div class="row">
+        <div><label>Username</label><input id="user" placeholder="admin" autocomplete="off"></div>
+        <div><label>Password</label><input id="password" type="password" autocomplete="off"></div>
+      </div>
+      <div class="fhint">CerberusAI signs in with a read-only service account. Wazuh / Elastic / Security Onion authenticate with a username + password — there's no separate API key to paste here.</div>
+      <div class="row">
+        <div><label>Alert Index Pattern</label><input id="index" class="mono"></div>
+        <div><label>Min alert level</label><input id="minlevel" value="5" class="mono"></div>
+      </div>
+      <div class="chk"><input type="checkbox" id="verify"><label style="margin:0;text-transform:none;letter-spacing:0;font-weight:500;color:var(--body)">Verify TLS certificate (uncheck for self-signed / lab)</label></div>
     </div>
-    <div class="row">
-      <div><label>Alert Index Pattern</label><input id="index" class="mono"></div>
-      <div><label>Min alert level</label><input id="minlevel" value="5" class="mono"></div>
+
+    <div id="sentinel-fields" style="display:none">
+      <div class="row">
+        <div><label>Azure cloud</label><select id="az-cloud"><option value="commercial">Commercial</option><option value="government">Government (Gov/DoD)</option></select></div>
+        <div><label>Log table</label><select id="az-table"><option value="SecurityEvent">SecurityEvent (Windows)</option><option value="SigninLogs">SigninLogs (Entra ID)</option></select></div>
+      </div>
+      <label>Directory (tenant) ID</label>
+      <input id="az-tenant" class="mono" autocomplete="off" placeholder="00000000-0000-0000-0000-000000000000">
+      <label>Log Analytics Workspace ID</label>
+      <input id="az-workspace" class="mono" autocomplete="off" placeholder="workspace GUID">
+      <div class="row">
+        <div><label>Application (client) ID</label><input id="az-client" class="mono" autocomplete="off"></div>
+        <div><label>Client secret</label><input id="az-secret" type="password" autocomplete="off"></div>
+      </div>
     </div>
-    <div class="chk"><input type="checkbox" id="verify"><label style="margin:0;text-transform:none;letter-spacing:0;font-weight:500;color:var(--body)">Verify TLS certificate (uncheck for self-signed / lab)</label></div>
+
     <button class="btn" onclick="testSiem()">Test Connection</button>
     <div class="status" id="s-siem"></div>
-    <div class="note">Wazuh works out of the box. Elastic / Security Onion may need field-mapping tweaks in <span class="mono">config.json</span> — see the README. Using a SIEM we don't support yet? Add an adapter in <span class="mono">siem/</span>.</div>
+    <div class="note" id="siem-note">Wazuh works out of the box. Elastic / Security Onion may need field-mapping tweaks in <span class="mono">config.json</span>. Add other SIEMs via an adapter in <span class="mono">siem/</span>.</div>
   </div>
 
   <div class="card">
@@ -803,11 +827,26 @@ function adminValid(){
   if(p.length<8){setStatus($('s-admin'),'err','Password must be at least 8 characters.');return false;}
   if(p!==p2){setStatus($('s-admin'),'err','Passwords do not match.');return false;}
   setStatus($('s-admin'),'ok','Looks good.');return true;}
-function onProvider(){const o=$('provider').selectedOptions[0];$('index').value=o.dataset.index;}
+function onProvider(){
+  const p=$('provider').value, sent=(p==='sentinel');
+  $('os-fields').style.display=sent?'none':'block';
+  $('sentinel-fields').style.display=sent?'block':'none';
+  const o=$('provider').selectedOptions[0];
+  if(!sent && o.dataset.index) $('index').value=o.dataset.index;
+  $('siem-note').innerHTML = sent
+    ? "Uses an Entra ID app (client credentials): create an app registration, give it the Log Analytics Reader role on the workspace, and paste its Directory (tenant) ID, Application (client) ID + secret, and the Workspace ID. Government cloud endpoints are supported."
+    : "Wazuh works out of the box. Elastic / Security Onion may need field-mapping tweaks in <span class='mono'>config.json</span>. Add other SIEMs via an adapter in <span class='mono'>siem/</span>.";
+}
 onProvider();
-function siemBody(){return{provider:$('provider').value,url:$('url').value.trim(),user:$('user').value.trim(),
-  password:$('password').value,index:$('index').value.trim(),min_level:parseInt($('minlevel').value||'5'),
-  verify_tls:$('verify').checked};}
+function siemBody(){
+  const p=$('provider').value;
+  if(p==='sentinel') return{provider:'sentinel',cloud:$('az-cloud').value,table:$('az-table').value,
+    tenant_id:$('az-tenant').value.trim(),workspace_id:$('az-workspace').value.trim(),
+    client_id:$('az-client').value.trim(),client_secret:$('az-secret').value,min_level:5};
+  return{provider:p,url:$('url').value.trim(),user:$('user').value.trim(),
+    password:$('password').value,index:$('index').value.trim(),min_level:parseInt($('minlevel').value||'5'),
+    verify_tls:$('verify').checked};
+}
 function setStatus(el,cls,msg){el.className='status '+cls;el.textContent=msg;}
 function refresh(){const ready=siemOk&&keyOk&&adminValid();$('launch').disabled=!ready;
   $('foot').textContent=ready?'Ready — click to activate.':'Complete the steps above to activate.';}

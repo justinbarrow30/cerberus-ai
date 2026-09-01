@@ -42,8 +42,11 @@ def get_adapter(config: dict) -> SIEMAdapter:
     if provider in ("opensearch", "elasticsearch", "wazuh", "elastic", "security-onion", "securityonion"):
         from .opensearch import OpenSearchAdapter
         return OpenSearchAdapter(siem)
+    if provider in ("sentinel", "microsoft-sentinel", "azure-sentinel"):
+        from .sentinel import SentinelAdapter
+        return SentinelAdapter(siem)
     raise ValueError(
-        f"Unsupported SIEM provider '{provider}'. Supported today: opensearch "
-        f"(Wazuh / Elastic / Security Onion). Splunk & Sentinel are on the roadmap — "
-        f"contribute an adapter in siem/."
+        f"Unsupported SIEM provider '{provider}'. Supported: opensearch (Wazuh / Elastic / "
+        f"Security Onion) and sentinel (Microsoft Sentinel). Splunk & CrowdStrike LogScale "
+        f"are next — add an adapter in siem/."
     )

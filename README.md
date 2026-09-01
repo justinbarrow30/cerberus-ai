@@ -64,10 +64,11 @@ CerberusAI talks to SIEMs through a small **adapter** layer, so the brain is SIE
 
 | SIEM | Status |
 |------|--------|
-| **Wazuh** | ✅ Supported (tested) |
+| **Wazuh** | ✅ Supported (tested end-to-end against a live lab) |
 | **Elastic Security** | ✅ Supported (OpenSearch adapter; may need field-map tweaks) |
 | **Security Onion** | ✅ Supported (OpenSearch adapter; may need field-map tweaks) |
-| Splunk, Microsoft Sentinel, QRadar, … | 🛣️ Roadmap — **contributions welcome** |
+| **Microsoft Sentinel** | 🟡 Adapter built (Entra ID auth + KQL, Commercial **and** Government clouds); unit-tested against mocked Log Analytics, not yet run against a live workspace |
+| Splunk, CrowdStrike Falcon LogScale, QRadar, … | 🛣️ Roadmap — **contributions welcome** |
 
 **Using a SIEM we don't support yet?** Add an adapter in [`siem/`](siem/) — implement three
 methods (`test_connection`, `list_recent_sources`, `query_source_activity`) and the whole engine
