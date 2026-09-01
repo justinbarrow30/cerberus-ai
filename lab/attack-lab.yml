@@ -1,0 +1,50 @@
+# Attack-lab overlay for the official Wazuh single-node stack.
+#
+# This is a compose *overlay*: you run it MERGED with Wazuh's own
+# docker-compose.yml so all services share one network and the agent can resolve
+# `wazuh.manager` by name. From the cloned wazuh-docker/single-node directory:
+#
+#   docker compose -f docker-compose.yml -f /abs/path/to/cerberus-ai/lab/attack-lab.yml up -d --build
+#
+# See lab/README.md for the full bring-up (certs, indexer, dashboard) first.
+
+services:
+  target:
+    # Absolute paths: when merged with Wazuh's compose, the project dir is the
+    # Wazuh folder, so relative paths here would resolve to the wrong place.
+    build:
+      context: C:/dev/Claude/cerberus-ai/lab/target
+    container_name: cerberus-target
+    hostname: target-host
+    environment:
+      - WAZUH_MANAGER=wazuh.manager
+    depends_on:
+      - wazuh.manager          # provided by the merged wazuh compose file
+    restart: unless-stopped
+
+  secure-db:
+    # A SECOND, high-value target (reuses the same image). Distinct hostname so it
+    # shows up as its own agent/host in the SIEM. The attacker pivoting here creates
+    # an UNPRECEDENTED source->target edge = lateral movement the agent should catch.
+    build:
+      context: C:/dev/Claude/cerberus-ai/lab/target
+    container_name: cerberus-secure-db
+    hostname: secure-db
+    environment:
+      - WAZUH_MANAGER=wazuh.manager
+    depends_on:
+      - wazuh.manager
+    restart: unless-stopped
+
+  attacker:
+    image: alpine:3.19
+    container_name: cerberus-attacker
+    environment:
+      - TARGET_HOSTS=target secure-db   # baseline target + the pivot
+    volumes:
+      - C:/dev/Claude/cerberus-ai/lab/attacker/attack.sh:/attack.sh:ro
+    command: ["sh", "/attack.sh"]
+    depends_on:
+      - target
+      - secure-db
+    restart: unless-stopped

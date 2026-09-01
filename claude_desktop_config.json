@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cerberus-ai": {
+      "command": "python",
+      "args": ["C:\\dev\\Claude\\cerberus-ai\\server.py"]
+    }
+  }
+}

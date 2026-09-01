@@ -1,0 +1,407 @@
+<title>CerberusAI</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F6F5; --panel:#FFFFFF; --panel-2:#FAFAF9;
+    --ink:#161417; --body:#5B5A5C; --muted:#8C8A8C; --faint:#BAB7B7;
+    --line:#ECEAE9; --line-2:#E2DFDE;
+    --violet:#E11A0F; --violet-soft:#FDEBE9; --violet-ink:#BE1409;
+    --coral:#E11A0F; --coral-soft:#FDEBE9;
+    --green:#17171B; --green-soft:#F0F0F2;
+    --ring:rgba(225,26,15,.18);
+    --shadow-sm:0 1px 2px rgba(24,20,52,.05);
+    --shadow:0 4px 14px rgba(24,20,52,.05), 0 18px 44px rgba(24,20,52,.06);
+    --shadow-lg:0 8px 24px rgba(24,20,52,.08), 0 30px 70px rgba(24,20,52,.10);
+    --maxw:1120px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Sora',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .display{font-family:'Chakra Petch','Sora',sans-serif}
+  .mono{font-family:'JetBrains Mono',ui-monospace,Consolas,monospace}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+  /* section overline — display face + a short red rule, not monospace */
+  .eyebrow{display:inline-flex;align-items:center;gap:12px;font-family:'Chakra Petch',sans-serif;font-size:12px;
+    font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--violet-ink)}
+  .eyebrow::before{content:"";flex:none;width:28px;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,var(--violet),#ff6a5c)}
+  /* hero badge — the eye-candy: outlined pill with a live pulsing red dot */
+  .hero-badge{display:inline-flex;align-items:center;gap:11px;font-family:'Chakra Petch',sans-serif;font-size:11.5px;
+    font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--ink);background:var(--panel);
+    border:1px solid var(--line-2);border-radius:999px;padding:9px 17px 9px 13px;box-shadow:var(--shadow-sm)}
+  .hero-badge .dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--violet);
+    box-shadow:0 0 0 3px rgba(225,26,15,.15)}
+  .hero-badge .dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--violet);animation:ping 2.2s ease-out infinite}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(225,26,15,.5)}70%{box-shadow:0 0 0 10px rgba(225,26,15,0)}100%{box-shadow:0 0 0 0 rgba(225,26,15,0)}}
+  @media (prefers-reduced-motion:reduce){.hero-badge .dot::after{animation:none}}
+  p{color:var(--body)}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;
+    padding:11px 18px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:.18s ease;white-space:nowrap}
+  .btn-primary{background:var(--violet);color:#fff;box-shadow:0 2px 10px rgba(225,26,15,.28)}
+  .btn-primary:hover{background:#f5352a;transform:translateY(-1px);box-shadow:0 8px 22px rgba(225,26,15,.32)}
+  .btn-ghost{background:var(--panel);border-color:var(--line-2);color:var(--ink);box-shadow:var(--shadow-sm)}
+  .btn-ghost:hover{border-color:var(--faint);transform:translateY(-1px)}
+  .btn-lg{padding:14px 24px;font-size:15px;border-radius:12px}
+  .btn:focus-visible,a:focus-visible{outline:2px solid var(--violet);outline-offset:3px}
+
+  /* nav */
+  header{position:sticky;top:0;z-index:20;background:rgba(246,246,250,.8);backdrop-filter:blur(12px) saturate(1.2);
+    border-bottom:1px solid var(--line)}
+  header .wrap{height:66px;display:flex;align-items:center;gap:14px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:'Chakra Petch';font-weight:700;font-size:19px;letter-spacing:-0.02em}
+  .mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(140deg,#ff4438,#c21309);
+    display:grid;place-items:center;box-shadow:0 3px 10px rgba(225,26,15,.32)}
+  .mark svg{width:15px;height:15px}
+  nav{margin-left:auto;display:flex;align-items:center;gap:30px}
+  nav .nlink{font-size:14px;font-weight:500;color:var(--body)}
+  nav .nlink:hover{color:var(--ink)}
+
+  /* hero */
+  .hero{position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(760px 380px at 82% -6%, rgba(225,26,15,.13), transparent 62%),
+               radial-gradient(600px 380px at -5% 108%, rgba(22,20,23,.05), transparent 60%)}
+  .hero .wrap{position:relative;display:grid;grid-template-columns:1.08fr .92fr;gap:56px;align-items:center;
+    padding:84px 28px 92px}
+  h1{font-family:'Chakra Petch';font-weight:600;font-size:clamp(40px,5.6vw,62px);line-height:1.03;
+    letter-spacing:-0.025em;margin:20px 0 0;text-wrap:balance;color:var(--ink)}
+  .lede{margin:24px 0 0;font-size:19px;line-height:1.62;color:var(--body);max-width:32em}
+  .cta-row{margin-top:32px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .trust{margin-top:22px;display:flex;flex-wrap:wrap;gap:18px;color:var(--muted);font-size:13.5px}
+  .trust span{display:inline-flex;align-items:center;gap:7px}
+  .trust svg{width:15px;height:15px;color:var(--green)}
+
+  /* hero visual: incident card */
+  .card-float{position:relative}
+  .incident{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 22px 18px;
+    box-shadow:var(--shadow-lg)}
+  .inc-top{display:flex;align-items:flex-start;justify-content:space-between}
+  .disp{font-size:11.5px;font-weight:600;letter-spacing:.04em;color:var(--coral);background:var(--coral-soft);
+    border-radius:999px;padding:6px 13px;font-family:'JetBrains Mono',monospace}
+  .gauge{position:relative;width:74px;height:74px}
+  .gauge svg{transform:rotate(-90deg)}
+  .gauge .num{position:absolute;inset:0;display:grid;place-items:center;font-family:'Chakra Petch';
+    font-weight:700;font-size:26px;color:var(--coral);letter-spacing:-0.03em}
+  .inc-path{margin-top:18px;font-weight:600;font-size:18px;letter-spacing:-0.01em;color:var(--ink)}
+  .inc-path .arrow{color:var(--faint);margin:0 8px;font-weight:400}
+  .inc-tag{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--coral);background:var(--coral-soft);border-radius:999px;padding:3px 9px;margin-left:8px;vertical-align:middle}
+  .inc-sum{margin:12px 0 0;font-size:14px;line-height:1.55;color:var(--body)}
+  .inc-steps{margin:16px 0 0;padding:16px 0 0;border-top:1px solid var(--line);display:grid;gap:11px;list-style:none}
+  .inc-steps li{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--body)}
+  .inc-steps .tick{flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--green-soft);display:grid;place-items:center}
+  .inc-steps .tick svg{width:11px;height:11px;color:var(--green)}
+  .inc-steps .mono{font-size:12.5px;color:var(--muted)}
+
+  /* sections */
+  section{position:relative}
+  .pad{padding:92px 0}
+  .sec-head{max-width:36em;margin-bottom:44px}
+  .sec-head h2{font-family:'Chakra Petch';font-weight:600;font-size:clamp(28px,3.6vw,38px);letter-spacing:-0.02em;
+    margin:12px 0 0;color:var(--ink);text-wrap:balance}
+  .sec-head p{margin:16px 0 0;font-size:17px;color:var(--body)}
+
+  /* requirements — airy, not boxed grid */
+  .reqs{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+  .req{padding:4px 0}
+  .req .ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:18px;
+    background:var(--violet-soft);color:var(--violet-ink)}
+  .req.key .ic{background:linear-gradient(140deg,#ff4438,#c21309);color:#fff;box-shadow:0 6px 16px rgba(225,26,15,.28)}
+  .req .ic svg{width:22px;height:22px}
+  .req h3{font-family:'Chakra Petch';font-weight:600;font-size:19px;letter-spacing:-0.01em;margin:0 0 8px;color:var(--ink)}
+  .req .req-flag{font-family:'Chakra Petch',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--violet-ink);vertical-align:middle;margin-left:8px}
+  .req p{margin:0;font-size:14.5px;line-height:1.6}
+  .req a{color:var(--violet-ink);border-bottom:1px solid var(--ring)}
+  .req a:hover{border-color:var(--violet)}
+
+  /* install */
+  .install{display:grid;grid-template-columns:.95fr 1.05fr;gap:52px;align-items:center}
+  .steps{display:grid;gap:30px}
+  .stepc{display:flex;gap:18px}
+  .stepc .idx{flex:0 0 auto;width:34px;height:34px;border-radius:11px;background:var(--panel);border:1px solid var(--line-2);
+    box-shadow:var(--shadow-sm);font-family:'Chakra Petch';font-weight:700;font-size:15px;display:grid;place-items:center;
+    color:var(--violet-ink)}
+  .stepc h4{font-family:'Chakra Petch';font-weight:600;font-size:17px;margin:4px 0 5px;color:var(--ink);letter-spacing:-0.01em}
+  .stepc p{margin:0;font-size:14.5px;line-height:1.55}
+  code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:var(--violet-soft);color:var(--violet-ink);
+    padding:2px 7px;border-radius:6px}
+  /* the single dark contrast moment */
+  .term{background:#17161F;border-radius:16px;overflow:hidden;box-shadow:var(--shadow-lg)}
+  .term .bar{display:flex;align-items:center;gap:7px;padding:14px 16px;border-bottom:1px solid #262532}
+  .term .bar i{width:11px;height:11px;border-radius:50%;background:#33313f;display:inline-block}
+  .term .bar i:first-child{background:#e0605f}.term .bar i:nth-child(2){background:#e6b34d}.term .bar i:nth-child(3){background:#5cc48a}
+  .term .bar .t{margin-left:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#6b6a7d}
+  .term pre{margin:0;padding:20px 22px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.95;color:#E7E7F0;overflow-x:auto}
+  .term .p{color:#ff6a5c}.term .c{color:#6b6a7d}.term .g{color:#5cc48a}
+
+  /* what it does — editorial two-col, airy, hairline divided (not boxed) */
+  .feats{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .feat{padding:30px 34px 30px 0}
+  .feat + .feat{}
+  .feats .feat:nth-child(odd){border-right:1px solid var(--line)}
+  .feats .feat:nth-child(even){padding-left:34px}
+  .feats .feat:nth-child(n+3){border-top:1px solid var(--line)}
+  .feat .k{font-family:'Chakra Petch',sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--violet-ink)}
+  .feat h3{font-family:'Chakra Petch';font-weight:600;font-size:20px;margin:12px 0 8px;color:var(--ink);letter-spacing:-0.01em}
+  .feat p{margin:0;font-size:15px;line-height:1.62}
+
+  /* compat */
+  .compat{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .clist{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px 28px 26px;box-shadow:var(--shadow-sm)}
+  .clist .k{font-family:'Chakra Petch',sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .clist h3{font-family:'Chakra Petch';font-weight:600;font-size:21px;margin:9px 0 18px;color:var(--ink);letter-spacing:-0.01em}
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{font-size:13px;font-weight:500;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);
+    border-radius:9px;padding:8px 13px}
+  .chip.soon{color:var(--muted);border-style:dashed;background:transparent}
+  .clist small{display:block;margin-top:16px;color:var(--muted);font-size:13px;line-height:1.55}
+
+  /* notes */
+  .notes{display:grid;gap:14px;max-width:760px}
+  .note{display:flex;gap:15px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm)}
+  .note .ic{flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--green-soft);color:var(--green)}
+  .note.warn .ic{background:var(--coral-soft);color:var(--coral)}
+  .note .ic svg{width:18px;height:18px}
+  .note h4{font-family:'Chakra Petch';font-weight:600;font-size:16px;margin:2px 0 5px;color:var(--ink)}
+  .note p{margin:0;font-size:14.5px;line-height:1.6}
+
+  /* download */
+  .download{position:relative;overflow:hidden}
+  .download .panel{position:relative;background:linear-gradient(160deg,#ffffff, #FFF8F7);border:1px solid var(--line);
+    border-radius:26px;padding:70px 40px;text-align:center;box-shadow:var(--shadow);overflow:hidden}
+  .download .panel::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(560px 260px at 50% -30%, rgba(225,26,15,.13), transparent 65%)}
+  .download h2{position:relative;font-family:'Chakra Petch';font-weight:600;font-size:clamp(30px,4.2vw,44px);
+    letter-spacing:-0.025em;margin:12px 0 0;color:var(--ink);text-wrap:balance}
+  .download p{position:relative;margin:16px auto 0;max-width:30em;font-size:17px}
+  .download .cta-row{position:relative;justify-content:center;margin-top:30px}
+  .download .fine{position:relative;margin-top:22px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)}
+
+  footer{border-top:1px solid var(--line)}
+  footer .wrap{padding:30px 28px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+    color:var(--muted);font-size:13px}
+  footer a{color:var(--violet-ink)}
+
+  @media (max-width:880px){
+    .hero .wrap{grid-template-columns:1fr;gap:44px;padding:60px 28px 68px}
+    .reqs{grid-template-columns:1fr;gap:34px}
+    .install{grid-template-columns:1fr;gap:34px}
+    .feats{grid-template-columns:1fr}
+    .feats .feat{border-right:none!important;padding:26px 0!important}
+    .feats .feat + .feat{border-top:1px solid var(--line)}
+    .compat{grid-template-columns:1fr}
+    nav .nlink{display:none}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{opacity:0;transform:translateY(16px);animation:rise .8s cubic-bezier(.2,.7,.2,1) forwards}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.6 4.5 5.6v5.7c0 4.6 3.2 7.6 7.5 9 4.3-1.4 7.5-4.4 7.5-9V5.6L12 2.6Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.7 12.2l2.3 2.3 4.3-4.6" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      CerberusAI
+    </a>
+    <nav>
+      <a class="nlink" href="#how">How it works</a>
+      <a class="nlink" href="#requirements">Requirements</a>
+      <a class="nlink" href="#compat">Works with</a>
+      <a class="btn btn-primary" href="#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero" id="top">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="hero-badge"><span class="dot"></span>Open source · Read-only · Bring your own LLM</span>
+      <h1>Your alert queue, cleared by an analyst that never sleeps.</h1>
+      <p class="lede">CerberusAI connects to your SIEM and works each alert the way a senior analyst would — pulling the data, learning what's normal for your network, and returning a decision with the evidence already gathered. It closes the noise and escalates the real threats, so your team only sees what matters.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="#download">Download CerberusAI</a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/justinbarrow30/cerberus-ai" target="_blank" rel="noopener">View the source</a>
+      </div>
+      <div class="trust">
+        <span><svg viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Never writes to your systems</span>
+        <span><svg viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg> Runs in your environment</span>
+      </div>
+    </div>
+
+    <div class="reveal card-float" style="animation-delay:.1s">
+      <div class="incident">
+        <div class="inc-top">
+          <span class="disp">Escalate</span>
+          <div class="gauge">
+            <svg width="74" height="74" viewBox="0 0 74 74">
+              <circle cx="37" cy="37" r="32" fill="none" stroke="#EFEDED" stroke-width="5"/>
+              <circle cx="37" cy="37" r="32" fill="none" stroke="#E11A0F" stroke-width="5" stroke-linecap="round"
+                      stroke-dasharray="160.8 201" ></circle>
+            </svg>
+            <div class="num">8</div>
+          </div>
+        </div>
+        <div class="inc-path"><span class="mono">prod-web-01</span><span class="arrow">→</span><span class="mono">secure-db</span><span class="inc-tag">critical</span></div>
+        <p class="inc-sum">A web server just reached the production database it has never contacted before — a hallmark of an attacker moving deeper into the network. Flagged for a human before the breach could complete.</p>
+        <ul class="inc-steps">
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span class="mono">SIEM · 251 failed auths, 0 successful</span></li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span class="mono">Baseline · 136σ above this asset's normal</span></li>
+          <li><span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span class="mono">Topology · first-ever edge to a critical asset</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="requirements">
+  <div class="wrap pad">
+    <div class="sec-head">
+      <span class="eyebrow">Before you start</span>
+      <h2>Three things to have ready</h2>
+      <p>CerberusAI runs as a container in your own environment, and setup happens entirely in the browser.</p>
+    </div>
+    <div class="reqs">
+      <div class="req key">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+        <h3>Docker <span class="req-flag">Required</span></h3>
+        <p>The entire app ships as one container, so a single command replaces installing Python and its libraries by hand. Grab <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">Docker Desktop</a> — it's free — and you're ready.</p>
+      </div>
+      <div class="req">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z" stroke="currentColor" stroke-width="1.7"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" stroke="currentColor" stroke-width="1.7"/></svg></div>
+        <h3>A SIEM</h3>
+        <p>Read-only access to your log platform — Wazuh, Elastic Security, or Security Onion. If you don't have one to test against, the bundle includes a throwaway lab to try it on.</p>
+      </div>
+      <div class="req">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+        <h3>An AI key</h3>
+        <p>Your own model — Anthropic, OpenAI, Azure OpenAI, Gemini, DeepSeek, or any OpenAI-compatible endpoint. You keep control of the provider and the billing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap pad">
+    <div class="sec-head">
+      <span class="eyebrow">Live in two commands</span>
+      <h2>Deploy it, then set it up in your browser</h2>
+    </div>
+    <div class="install">
+      <div class="steps">
+        <div class="stepc"><div class="idx">1</div><div><h4>Start it</h4><p>Run <code>docker compose up -d</code> inside the folder. The container builds and comes up on port 8787.</p></div></div>
+        <div class="stepc"><div class="idx">2</div><div><h4>Open the wizard</h4><p>Head to <code>localhost:8787</code>, connect your SIEM, add your AI key, and press Initialize.</p></div></div>
+        <div class="stepc"><div class="idx">→</div><div><h4>It runs</h4><p>CerberusAI begins investigating live alerts and posting verdicts to the console. There's nothing else to wire up.</p></div></div>
+      </div>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i><span class="t mono">first run</span></div>
+<pre class="mono"><span class="c"># deploy</span>
+<span class="p">$</span> cd cerberus-ai
+<span class="p">$</span> docker compose up -d
+<span class="g">✓</span> cerberus-ai running on :8787
+
+<span class="c"># configure — in the browser</span>
+  <span class="g">✓</span> SIEM connected · read-only
+  <span class="g">✓</span> AI engine verified
+  <span class="g">✓</span> engine live · clearing the queue</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap pad">
+    <div class="sec-head">
+      <span class="eyebrow">What it does</span>
+      <h2>It investigates and decides — it doesn't just summarize the alert</h2>
+    </div>
+    <div class="feats">
+      <div class="feat"><div class="k">Clears the noise</div><h3>Auto-closes false alarms, with proof</h3><p>Most alerts are benign, but a human still has to confirm each one. CerberusAI checks them itself and safely closes the routine ones, so your analysts never open them. That reclaimed time is the whole point.</p></div>
+      <div class="feat"><div class="k">Catches the pivot</div><h3>Sees lateral movement by the map, not the log</h3><p>It learns which machines normally talk to which. When one reaches a critical system it has never touched, that break in the pattern is escalated — often before any login has even succeeded.</p></div>
+      <div class="feat"><div class="k">Grounded</div><h3>Hard evidence over hunches</h3><p>Every verdict cites the queries it ran and a plain statistical score, like how many standard deviations a spike sits above normal. When the evidence is thin, it escalates rather than inventing a story.</p></div>
+      <div class="feat"><div class="k">Compounds</div><h3>Sharper the longer it runs</h3><p>A local memory starts empty and fills itself with your assets, baselines, and past decisions — tied to stable identities, so it keeps its footing through cloud and DHCP address churn.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="compat">
+  <div class="wrap pad">
+    <div class="sec-head">
+      <span class="eyebrow">Fits your stack</span>
+      <h2>Any SIEM. Any AI license.</h2>
+      <p>The reasoning core is provider-agnostic, so you can use the tools your organization has already approved.</p>
+    </div>
+    <div class="compat">
+      <div class="clist">
+        <div class="k">SIEM connectors</div>
+        <h3>Reads your log platform</h3>
+        <div class="chips">
+          <span class="chip">Wazuh</span>
+          <span class="chip">Elastic Security</span>
+          <span class="chip">Security Onion</span>
+          <span class="chip soon">Splunk — soon</span>
+          <span class="chip soon">Sentinel — soon</span>
+        </div>
+        <small>OpenSearch-family platforms work today. Others take a small adapter, and contributions are welcome.</small>
+      </div>
+      <div class="clist">
+        <div class="k">Bring your own LLM</div>
+        <h3>Reasons with your model</h3>
+        <div class="chips">
+          <span class="chip">Anthropic</span>
+          <span class="chip">OpenAI</span>
+          <span class="chip">Azure OpenAI</span>
+          <span class="chip">Gemini</span>
+          <span class="chip">DeepSeek</span>
+          <span class="chip">Custom endpoint</span>
+        </div>
+        <small>A private deployment keeps data in your environment; a public API sends alert text to a vendor you've already vetted.</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap pad">
+    <div class="sec-head">
+      <span class="eyebrow">No surprises</span>
+      <h2>What it will and won't do</h2>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4 2.9 6.9 7 8 4.1-1.1 7-4 7-8V6l-7-3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span><div><h4>Strictly read-only</h4><p>It reads from your SIEM and reasons about alerts. It never writes, blocks, quarantines, or reconfigures anything — not your hosts, not your network gear. There is deliberately no automation that touches your infrastructure.</p></div></div>
+      <div class="note warn"><span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16.5v.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M12 3.5 21 19.5H3L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span><div><h4>Alert text goes to your chosen LLM</h4><p>To investigate an alert, the relevant text is sent to the AI provider you configure, using your key. That is the only thing that leaves your environment — treat it like any AI tool your team adopts.</p></div></div>
+      <div class="note"><span class="ic"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><h4>No telemetry, no phone-home</h4><p>CerberusAI collects nothing and sends nothing back to the project. It's open source, so you can read exactly what it does.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="download" id="download">
+  <div class="wrap pad">
+    <div class="panel">
+      <span class="eyebrow">Get started</span>
+      <h2>Bring it home and run it today</h2>
+      <p>Download the source bundle, run one command, and set it up in your browser. Open source, MIT licensed, yours to keep.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="cerberus-ai.zip">Download the bundle</a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/justinbarrow30/cerberus-ai" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+      <div class="fine">Requires Docker Desktop · a reachable SIEM · your own AI key</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>CerberusAI — an open-source agentic SOC</div>
+    <div>MIT licensed · <a href="https://github.com/justinbarrow30/cerberus-ai" target="_blank" rel="noopener">github.com/justinbarrow30/cerberus-ai</a></div>
+  </div>
+</footer>

@@ -1,0 +1,21 @@
+# CerberusAI — one-command deploy.
+#
+#   docker compose up -d
+#   → open http://localhost:8787 and complete the setup wizard.
+#
+# This runs CerberusAI itself. It connects to YOUR existing SIEM (entered in the
+# wizard) — it does NOT stand up a lab. Everything it learns is stored on the
+# named volume, so restarts keep the memory.
+services:
+  cerberus:
+    build: .
+    image: cerberus-ai:latest
+    container_name: cerberus-ai
+    ports:
+      - "8787:8787"
+    volumes:
+      - cerberus-data:/data      # config.json, cerberus_memory.db, verdicts
+    restart: unless-stopped
+
+volumes:
+  cerberus-data:

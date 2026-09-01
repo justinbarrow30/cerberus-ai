@@ -1,0 +1,34 @@
+{
+  "_comment": "Seed of the 'environment memory' (your RAG idea). In production this grows automatically as the tool observes the network. For now it's a tiny hand-written inventory of the lab so the agent can reason about WHAT an IP is, not just its number.",
+  "assets": {
+    "172.18.0.5": {
+      "role": "attack-simulator container",
+      "zone": "lab docker bridge (172.18.0.0/16)",
+      "criticality": "low",
+      "internet_facing": false,
+      "notes": "The simulated adversary in the CerberusAI lab. Expected to generate hostile SSH traffic."
+    },
+    "target-host": {
+      "role": "SSH server (intended victim)",
+      "zone": "lab docker bridge (172.18.0.0/16)",
+      "criticality": "medium",
+      "internet_facing": false,
+      "exposed_services": ["ssh/22"],
+      "notes": "Deliberately vulnerable target in the lab."
+    },
+    "secure-db": {
+      "role": "core production database server",
+      "zone": "lab docker bridge (172.18.0.0/16)",
+      "criticality": "critical",
+      "internet_facing": false,
+      "exposed_services": ["ssh/22"],
+      "notes": "High-value asset holding production data. Should ONLY be reached by approved application hosts — never by the attack-simulator container. Any access attempt from an unexpected source is a serious lateral-movement indicator."
+    },
+    "172.18.0.0/16": {
+      "role": "Docker bridge network",
+      "zone": "lab",
+      "criticality": "low",
+      "notes": "Private container network; not the corporate LAN."
+    }
+  }
+}

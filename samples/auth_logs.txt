@@ -1,0 +1,6 @@
+Aug 20 14:05:12 target-host sshd[1234]: Failed password for root from 192.168.1.50 port 49232 ssh2
+Aug 20 14:05:13 target-host sshd[1234]: Failed password for root from 192.168.1.50 port 49233 ssh2
+Aug 20 14:05:14 target-host sshd[1235]: Accepted password for root from 192.168.1.50 port 49240 ssh2
+Aug 20 09:12:44 web01 nginx: 203.0.113.7 - - "GET /index.php?id=1' OR '1'='1 HTTP/1.1" 200 512
+Aug 20 09:15:02 web01 nginx: 198.51.100.23 - - "GET /images/logo.png HTTP/1.1" 200 20481
+Aug 20 03:22:10 db01 sudo: pam_unix(sudo:session): session opened for user root by deploy(uid=1001)
