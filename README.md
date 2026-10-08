@@ -1,9 +1,14 @@
 # CerberusAI
 
-**An open-source, read-only agentic SOC.** Point it at your SIEM and it investigates security
-alerts on its own, querying the SIEM, checking what is normal for *your* network, and returning a
-decision (**auto-close** or **escalate**) with plain-English reasoning and evidence. It exists to
-kill alert fatigue: let the machine clear the noise so human analysts only see what actually matters.
+**An open-source, read-only agentic SOC.**
+
+Most enterprises already own the tools for a strong SOC. What they lack is the people and expertise
+to run them at full strength. CerberusAI closes that gap. It plugs into your SIEM, works with any LLM
+you choose, and continuously reads your alert traffic to build a live baseline of how your network
+actually behaves. The moment your SIEM flags something, it investigates on its own: it checks the
+alert against that baseline, pulls the device's history, decides whether the behavior is normal, and
+returns an auto-close or escalate verdict with plain-English evidence in seconds. It becomes the most
+knowledgeable analyst on the team, one that never sleeps and never forgets.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-E11A0F.svg)
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-2b2b2b.svg)
@@ -20,15 +25,6 @@ attack path, MITRE techniques, and what it verified) before a human opened the t
 demo data; reproduce it with `python lab/demo_fixture.py`.</sub>
 
 ---
-
-## The problem it solves
-
-A modern SIEM throws off thousands of alerts a day. The overwhelming majority are noise: a mistyped
-password, a scanner, a known service. But a tier-1 analyst still has to open each one, pull context,
-decide, and move on. That is where real attacks get buried and where burnout happens.
-
-CerberusAI puts an autonomous investigator in front of that firehose. For every alert it does the
-work a human analyst would, then returns a verdict rather than a to-do list.
 
 ## See it in action
 
