@@ -1,6 +1,6 @@
 # CerberusAI
 
-**An open-source, read-only agentic SOC analyst.** Point it at your SIEM and it investigates
+**An open-source, read-only agentic SOC.** Point it at your SIEM and it investigates
 security alerts on its own — querying the SIEM, checking what is normal for *your* network, and
 returning a decision (**auto-close** or **escalate**) with plain-English reasoning and evidence.
 It exists to kill alert fatigue: let the machine clear the noise so human analysts only see what
@@ -52,11 +52,33 @@ textbook pivot, because it had learned the network's normal shape.
 
 ---
 
+## How you connect it — and why it's safe
+
+You connect CerberusAI to your SIEM through its **API** — you give it the SIEM's address and a
+read-only login (or an API key / token). The setup wizard tests that connection before it saves
+anything, so you know it works up front.
+
+The whole design is built around one idea: **it only ever reads.**
+
+- **It only gets the access you hand it.** You give it one read-only credential. It can reach
+  exactly what that credential allows — nothing more.
+- **It's a one-way pull.** Data flows *out* of your SIEM into CerberusAI. Nothing flows back.
+- **It makes zero changes.** It never blocks, quarantines, patches, pushes configuration, or runs
+  a command — not on your SIEM, your hosts, or your network gear. There is no write path in the code.
+- **Its verdicts stay on its own dashboard.** A human decides what to act on; CerberusAI never
+  reaches into your systems to do it.
+
+Same principle for anything you point it at: you control the credential, and it only reads. That
+read-only, one-way posture is deliberate — it is far easier to get approved in a security or
+government environment than anything that could change production.
+
+---
+
 ## How it gets smarter over time
 
 This is the core idea. **CerberusAI starts knowing nothing about your network and teaches itself
 as it works.** Every investigation writes to a local SQLite "memory" that starts empty and fills
-itself — and that memory is what turns a generic LLM into an analyst who knows *your* environment.
+itself — and that memory is what turns a generic LLM into something that understands *your* specific network.
 
 Each verdict records four things:
 
