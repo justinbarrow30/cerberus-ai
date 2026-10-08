@@ -49,18 +49,18 @@ v1 = VerifiedVerdict(
     category=ThreatCategory.brute_force,
     mitre_techniques=["T1110.001 Password Guessing"],
     compromise_confirmed=False,
-    blast_radius="Single non-critical app server (app-worker-02); SSH reachable only on the internal subnet.",
-    verification_status=("Queried SIEM: 18 failed / 0 successful auths from this source in 60m, "
-                         "all against target-host — its normal destination. Volume within the host's own baseline."),
+    blast_radius="Single non-critical app server (App Worker Node); SSH reachable only on the internal subnet.",
+    verification_status=("Queried SIEM: 18 failed, 0 successful auths from this source in the last hour, all "
+                         "against Application Host, its normal destination. Volume within the host's own baseline."),
     evidence=[
-        "18 failed SSH auths and 0 successful in the last 60m",
-        "Only target contacted: target-host (matches the 30-day baseline)",
-        "Statistical baseline: within normal range for this asset (0.4σ)",
-        "No prior escalations recorded for app-worker-02",
+        "18 failed SSH login attempts from App Worker Node (172.18.0.5) to Application Host, 0 successful, in the last hour",
+        "These two hosts talk constantly: thousands of sessions over the past 237 days, this is their normal path",
+        "The attempt rate sits within normal range, 0.4 standard deviations above this host's own baseline",
+        "Pattern is consistent with a misconfigured service retrying its credentials, not an attack",
     ],
     summary=("Routine failed SSH logins from a known internal server against the host it always talks to. "
              "No successful access and the volume is within baseline."),
-    recommended_actions=["none required"],
+    recommended_actions=["None required. Case closed automatically."],
     confidence=0.93,
 )
 trace1 = [
@@ -69,8 +69,8 @@ trace1 = [
     {"kind": "memory", "label": "Memory recall",
      "detail": "app-worker-02: known=True, normally reaches [target-host], prior verdicts {}"},
     {"kind": "siem", "label": "SIEM query (read-only)",
-     "detail": f"{BENIGN} / 60m → 18 failed, 0 successful; targets ['target-host']  |  Baseline: within normal range (0.4σ)"},
-    {"kind": "verdict", "label": "Verdict reached", "detail": "AUTO_CLOSE — score 2/10"},
+     "detail": f"{BENIGN} / 60m -> 18 failed, 0 successful; targets ['target-host']  |  Baseline: within normal range (0.4 sigma)"},
+    {"kind": "verdict", "label": "Verdict reached", "detail": "AUTO_CLOSE, score 2/10"},
 ]
 store_verdict(BENIGN, "target-host", v1, trace1)
 
@@ -79,25 +79,27 @@ v2 = VerifiedVerdict(
     disposition=Disposition.escalate,
     threat_score=8,
     category=ThreatCategory.credential_access,
-    mitre_techniques=["T1110.001 Password Guessing", "T1021.004 Remote Services: SSH"],
+    mitre_techniques=["T1110.001 Password Guessing", "T1021.004 Remote Services: SSH", "T1078 Valid Accounts"],
     compromise_confirmed=False,
-    blast_radius="Critical asset: secure-db (production database holding regulated data). Successful access here would be a reportable breach.",
-    verification_status=("Queried SIEM: 63 failed / 0 successful auths from this source in 60m against secure-db. "
-                         "Topology check: this source has NEVER contacted secure-db before — an unprecedented edge to a critical asset."),
+    blast_radius="Critical asset: Core Production Database (holds regulated data). A successful login here would be a reportable breach.",
+    verification_status=("Queried SIEM: 37 failed, 0 successful auths from Production Web Server to Core Production "
+                         "Database in a 5-minute window. Topology check: this source has NEVER reached the database "
+                         "before, an unprecedented edge to a critical asset."),
     evidence=[
-        "63 failed SSH auths and 0 successful in the last 60m",
-        "Target is secure-db, a critical production database",
-        "Topology drift: prod-web-01 → secure-db is an unprecedented edge (never seen in 30 days)",
-        "This source normally only reaches target-host — the new destination is lateral movement",
-        "Statistical baseline: anomalous (11.2σ above this source's own norm)",
+        "37 failed SSH login attempts from Production Web Server (172.18.0.7) to Core Production Database (10.0.4.12) in a 5-minute window, 0 successful",
+        "These two hosts have communicated only 3 times in the last 237 days, all brief approved maintenance sessions",
+        "Their normal peak is under 2 connections in any 5-minute period, so 37 is far outside the baseline (11.2 standard deviations above normal)",
+        "A public-facing web server has no routine reason to open administrative SSH sessions to the database tier",
+        "No successful login yet, so no confirmed break-in, but the behavior matches credential-based lateral movement",
+        "Aligns with MITRE ATT&CK T1110 (brute force) pivoting into T1021.004 (remote SSH), escalated to critical for human review",
     ],
-    summary=("A server that normally only touches target-host is now brute-forcing the production database it has "
-             "never contacted before — unprecedented lateral movement toward a crown-jewel asset. No successful "
-             "login yet, but this needs a human now."),
+    summary=("A web server that normally only touches the application host is now brute-forcing the production "
+             "database it has never contacted before. Unprecedented lateral movement toward a crown-jewel asset. "
+             "No successful login yet, but this needs a human now."),
     recommended_actions=[
-        "Review secure-db auth/session logs for any successful login from prod-web-01 in the last 60m",
-        "Confirm whether prod-web-01 → secure-db is ever an approved network path",
-        "Check prod-web-01 for signs it was itself compromised earlier (the pivot's origin)",
+        "Review the Core Production Database auth and session logs for any successful login from Production Web Server",
+        "Confirm whether Production Web Server to Core Production Database is ever an approved network path",
+        "Check Production Web Server for signs it was itself compromised earlier, the likely origin of this pivot",
     ],
     confidence=0.9,
 )
@@ -107,10 +109,10 @@ trace2 = [
     {"kind": "memory", "label": "Memory recall",
      "detail": "prod-web-01: known=True, normally reaches [target-host], prior verdicts {'auto_close': 1}"},
     {"kind": "siem", "label": "SIEM query (read-only)",
-     "detail": f"{PIVOT} / 60m → 63 failed, 0 successful; targets ['secure-db']  |  Baseline: anomalous (11.2σ)"},
+     "detail": f"{PIVOT} / 5m -> 37 failed, 0 successful; targets ['secure-db']  |  Baseline: anomalous (11.2 sigma)"},
     {"kind": "drift", "label": "Topology drift check",
-     "detail": "prod-web-01 → secure-db: UNPRECEDENTED — never-before-seen edge to a critical asset"},
-    {"kind": "verdict", "label": "Verdict reached", "detail": "ESCALATE — score 8/10"},
+     "detail": "prod-web-01 -> secure-db: UNPRECEDENTED, never-before-seen edge to a critical asset"},
+    {"kind": "verdict", "label": "Verdict reached", "detail": "ESCALATE, score 8/10"},
 ]
 store_verdict(PIVOT, "secure-db", v2, trace2)
 

@@ -131,12 +131,12 @@ def executive(r: dict) -> dict:
     seen_times = _max_int(blob, r"seen\s*(\d+)\s*x") or _max_int(blob, r"'auto_close':\s*(\d+)")
 
     if disp == "escalate":
-        headline = (f"{src} tried to reach the {tgt} — a critical system it has never touched before. "
+        headline = (f"{src} tried to reach the {tgt}, a critical system it has never touched before. "
                     f"A machine suddenly reaching a system it has no business touching is a classic sign "
                     f"of an attacker moving deeper into the network. Cerberus flagged it for a human.")
         impact = "Routed to a senior analyst with the full attack story already assembled."
     elif disp == "auto_close":
-        headline = (f"Cerberus handled this one on its own — no analyst needed. It confirmed the {src}'s "
+        headline = (f"Cerberus handled this one on its own, no analyst needed. It confirmed the {src}'s "
                     f"activity was harmless and expected, with no sign anyone got in, and closed the case.")
         impact = "~30 minutes of manual triage avoided. Your team never had to touch it."
     else:
@@ -154,17 +154,17 @@ def executive(r: dict) -> dict:
 
     vol = f"{failed:,} login attempts" if failed else "the login activity"
     if compromised:
-        s1 = f"Reviewed {window}: {vol} — and at least one SUCCEEDED. A break-in is likely; this needs a human now."
+        s1 = f"Reviewed {window}: {vol}, and at least one SUCCEEDED. A break-in is likely; this needs a human now."
     elif failed:
         s1 = f"Reviewed {window}: {failed:,} login attempts, and every single one FAILED. The attacker never got in."
     else:
-        s1 = f"Reviewed {window} — found no successful logins. No sign anyone got in."
+        s1 = f"Reviewed {window}: found no successful logins. No sign anyone got in."
     if unprec:
         s2 = (f"The {src} has never connected to the {tgt} before. This brand-new, unexpected path "
               f"is the fingerprint of an attacker spreading to new systems.")
     else:
         cnt = f" (seen {seen_times} times before)" if seen_times else ""
-        s2 = f"The {src} has used this exact path before{cnt}. Nothing new — the attacker is not spreading."
+        s2 = f"The {src} has used this exact path before{cnt}. Nothing new: the attacker is not spreading."
     s3 = {"auto_close": "Confirmed harmless, expected activity. Case closed automatically.",
           "escalate": "Dangerous pattern on a critical system. Escalated for a human decision.",
           "monitor": "Low priority. Kept under watch."}.get(disp, "")
@@ -511,6 +511,11 @@ PAGE = r"""<!doctype html>
     border:1px solid var(--esc);padding:4px 8px;white-space:nowrap;margin-top:1px}
   .objrow .ot{font-size:15px;font-weight:700;letter-spacing:-0.01em}
   .objrow .od{font-size:13px;color:var(--body);margin-top:3px;line-height:1.5;font-weight:450}
+  .findings{margin:0;padding:0;list-style:none}
+  .findings li{position:relative;padding:11px 0 11px 24px;font-size:13.5px;color:var(--body);line-height:1.5;border-bottom:1px solid var(--line)}
+  .findings li:last-child{border-bottom:none}
+  .findings li::before{content:"";position:absolute;left:4px;top:17px;width:7px;height:7px;background:var(--ink)}
+  .findings li b,.findings li strong{color:var(--ink);font-variant-numeric:tabular-nums}
   .step.good .pt{background:var(--ok)} .step.bad .pt{background:var(--esc)}
   .step.good .st,.step.bad .st{color:var(--ink)}
 </style></head>
@@ -568,6 +573,7 @@ function renderDetail(){
     <div class="step ${s.good?'good':'bad'}"><div class="pt"></div>
       <div class="st">${esc(s.q)}</div><div class="sd">${esc(s.a)}</div></div>`).join('');
   const acts=(r.recommended_actions||[]).map(a=>`<li>${esc(a)}</li>`).join('');
+  const finds=(r.evidence||[]).map(e=>`<li>${esc(e).replace(/([0-9][0-9,]*)/g,'<b>$1</b>')}</li>`).join('') || '<li>No specific findings recorded.</li>';
   const ic=r.disposition==='auto_close'?'ok':(r.disposition==='escalate'?'esc':'warn');
   el.innerHTML=`
     <div class="dhero">
@@ -593,9 +599,10 @@ function renderDetail(){
         <div class="node ${bad?'crit':''}"><div class="box">${esc(x.target_friendly)}</div><small>${bad?'Critical Asset':'Target'}</small></div>
       </div>
     </div>
-    <div class="sect"><h3><span class="idx">02</span>What The Attacker Was Trying To Do</h3><div class="obj">${obj}</div></div>
-    <div class="sect"><h3><span class="idx">03</span>How Cerberus Verified It</h3><div class="tl">${tl}</div></div>
-    <div class="sect"><h3><span class="idx">04</span>What Happens Next</h3><ol class="acts">${acts}</ol></div>`;
+    <div class="sect"><h3><span class="idx">02</span>What Cerberus Found</h3><ul class="findings">${finds}</ul></div>
+    <div class="sect"><h3><span class="idx">03</span>What The Attacker Was Trying To Do</h3><div class="obj">${obj}</div></div>
+    <div class="sect"><h3><span class="idx">04</span>How Cerberus Verified It</h3><div class="tl">${tl}</div></div>
+    <div class="sect"><h3><span class="idx">05</span>What Happens Next</h3><ol class="acts">${acts}</ol></div>`;
 }
 
 window.select=i=>{SEL=i;renderStream();renderDetail();};
