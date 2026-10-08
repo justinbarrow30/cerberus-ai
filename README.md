@@ -7,6 +7,10 @@ kill alert fatigue: let the machine clear the noise so your analysts only see wh
 
 > Not a lab or a simulator. You connect it to **your own** SIEM and it starts working.
 
+![CerberusAI operations console](docs/console.png)
+
+<sub>The operations console. Here CerberusAI auto-closed routine failed logins on a server's normal baseline, then escalated that same source when it pivoted to a production database it had never touched — a topology-drift signal of lateral movement — and handed the analyst the full story in plain English. (Illustrative demo data; reproduce it with `python lab/demo_fixture.py`.)</sub>
+
 ---
 
 ## ⚠️ Read this first (what it does and doesn't do)
