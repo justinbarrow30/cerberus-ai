@@ -42,6 +42,37 @@ m.bind_identity("prod-web-01", PIVOT, "server")
 m.record_relationship(BENIGN, "target-host", 22, "ssh")
 m.record_relationship(PIVOT, "target-host", 22, "ssh")
 
+# --- Background incidents, so the queue looks like a real shift (demo only) -------
+# These are illustrative queue entries; the two scenarios below are the focus. They
+# are stored FIRST so the featured escalate (stored last) stays selected on load.
+def _filler(src, tgt, disp, score, cat, summary, actions):
+    v = VerifiedVerdict(
+        disposition=Disposition[disp], threat_score=score, category=ThreatCategory[cat],
+        mitre_techniques=[], compromise_confirmed=False,
+        blast_radius="(demo) representative background incident.",
+        verification_status="(demo) illustrative queue entry.",
+        evidence=[summary], summary=summary, recommended_actions=actions, confidence=0.9)
+    store_verdict(src, tgt, v, [
+        {"kind": "alert", "label": "Alert received", "detail": f"Activity from {src} toward {tgt}"},
+        {"kind": "verdict", "label": "Verdict reached", "detail": f"{disp.upper()}, score {score}/10"}])
+
+
+_filler("ci-runner-07", "artifact-registry", "auto_close", 1, "benign",
+        "Scheduled CI job pulling build artifacts on its normal path.", ["None required."])
+_filler("backup-01", "file-store", "auto_close", 2, "benign",
+        "Nightly backup agent writing to the file store, within its usual window.", ["None required."])
+_filler("mail-relay-02", "smtp-out", "auto_close", 2, "policy_violation",
+        "Mail relay retrying a few outbound deliveries. Routine.", ["None required."])
+_filler("vpn-gw-01", "auth-service", "monitor", 4, "brute_force",
+        "A handful of failed VPN logins from a known gateway. Not urgent, watching it.",
+        ["Watch for a rise in attempt volume."])
+_filler("dev-laptop-22", "staging-api", "monitor", 3, "reconnaissance",
+        "Developer laptop hitting staging endpoints it does not usually touch.",
+        ["Confirm the developer is testing staging."])
+_filler("fin-ws-14", "payroll-db", "escalate", 7, "credential_access",
+        "Finance workstation making repeated failed logins to the payroll database after hours.",
+        ["Review payroll-db auth logs.", "Confirm the workstation user is active."])
+
 # --- Scenario 1: benign, on-baseline -> AUTO_CLOSE --------------------------------
 v1 = VerifiedVerdict(
     disposition=Disposition.auto_close,
@@ -136,4 +167,4 @@ trace2 = [
 ]
 store_verdict(PIVOT, "secure-db", v2, trace2)
 
-print(f"Wrote 2 demo verdicts to {VERDICTS_FILE}")
+print(f"Wrote demo verdicts (6 background + 2 featured) to {VERDICTS_FILE}")

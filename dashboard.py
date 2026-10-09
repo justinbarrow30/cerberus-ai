@@ -97,6 +97,18 @@ FRIENDLY = {   # stable asset id -> human name a leader recognizes
     "app-worker-02": "App Worker Node",
     "target-host": "Application Host",
     "secure-db": "Core Production Database",
+    "ci-runner-07": "CI Build Runner",
+    "artifact-registry": "Artifact Registry",
+    "backup-01": "Backup Agent",
+    "file-store": "File Store",
+    "mail-relay-02": "Mail Relay",
+    "smtp-out": "Mail Gateway",
+    "vpn-gw-01": "VPN Gateway",
+    "auth-service": "Identity Service",
+    "dev-laptop-22": "Developer Laptop",
+    "staging-api": "Staging API",
+    "fin-ws-14": "Finance Workstation",
+    "payroll-db": "Payroll Database",
 }
 
 # MITRE technique -> (plain title, one-line explanation of the adversary's intent)
