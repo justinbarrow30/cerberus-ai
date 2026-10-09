@@ -16,7 +16,7 @@ OUT = os.path.join(ROOT, "website", "cerberus-ai.zip")
 # Directories we never ship (local state, dev tooling, the website + build output).
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "outputs", "website", "node_modules", ".idea", ".vscode"}
 # Exact filenames that hold secrets / machine-local state.
-SKIP_FILES = {".env", "config.json", ".DS_Store", "build_release.py"}
+SKIP_FILES = {".env", "config.json", ".DS_Store", "build_release.py", "behavior_log.jsonl"}
 # Suffixes to drop (compiled python, the SQLite DBs + their WAL/journal siblings).
 SKIP_SUFFIXES = (".pyc", ".db", ".zip")
 

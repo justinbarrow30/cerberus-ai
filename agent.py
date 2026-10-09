@@ -144,6 +144,17 @@ async def query_siem(source_ip: str, window_minutes: int = 60) -> dict:
         "total_alerts": result["total_alerts"],
     })
     _memory.record_metric(source_ip, metric, result["failed_auth_count"])
+    # Behavioral anomaly model (optional ML layer): an explainable UEBA-style signal
+    # that complements the deterministic baseline above. No-op if ML deps / a trained
+    # model are absent, so the agent never depends on it.
+    try:
+        from ml.runtime import log_activity, score_activity
+        ba = score_activity(result)
+        if ba:
+            result["behavioral_anomaly"] = ba
+        log_activity(result)
+    except Exception:
+        pass
     # NOTE: we deliberately do NOT record the topology edges here. If we did, the
     # drift check during this same investigation would see the brand-new edge as
     # already-known and miss the lateral movement. Edges are committed to memory only
@@ -174,11 +185,13 @@ def _trace_step(name: str, inp: dict, out: dict) -> dict:
                           f"prior verdicts {out.get('prior_disposition_tally') or '{}'}"}
     if name == "query_siem":
         base = (out.get("statistical_baseline") or {}).get("note", "")
+        ba = (out.get("behavioral_anomaly") or {}).get("note", "")
         return {"kind": "siem", "label": "SIEM query (read-only)",
                 "detail": f"{inp.get('source_ip')} / {out.get('window_minutes')}m → "
                           f"{out.get('failed_auth_count')} failed, {out.get('successful_auth_count')} successful; "
                           f"targets {out.get('targets_contacted')}"
-                          + (f"  |  Baseline: {base}" if base else "")}
+                          + (f"  |  Baseline: {base}" if base else "")
+                          + (f"  |  {ba}" if ba else "")}
     if name == "check_topology_drift":
         return {"kind": "drift", "label": "Topology drift check",
                 "detail": f"{inp.get('source')} → {inp.get('target')}: {out.get('status')}"}

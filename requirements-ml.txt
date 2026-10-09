@@ -1,0 +1,8 @@
+# Optional ML layer (behavioral anomaly detection). Install only if you want the
+# anomaly signal:  pip install -r requirements-ml.txt
+# Without these, CerberusAI runs normally and simply omits the behavioral signal.
+numpy
+scikit-learn
+joblib
+matplotlib        # only used by ml/evaluate.py to plot the ROC curve
+torch             # optional within the optional: enables the autoencoder half of the ensemble

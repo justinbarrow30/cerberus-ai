@@ -8,3 +8,6 @@ cerberus_memory.db-*
 cerberus_users.db
 cerberus_users.db-*
 config.json
+
+# ML runtime data (regenerated locally)
+ml/behavior_log.jsonl

@@ -84,9 +84,10 @@ government environment than anything that could change production.
 ## How it gets smarter over time
 
 This is the core idea. CerberusAI starts knowing nothing about your network and teaches itself as it
-works. It does not use machine learning or model training, and there is no black box. Instead it
-keeps a local memory (a SQLite database) that starts empty and fills itself, and that memory is what
-turns a generic LLM into something that understands *your* specific network.
+works. It keeps a local memory (a SQLite database) that starts empty and fills itself, and that
+memory is what turns a generic LLM into something that understands *your* specific network. The core
+reasoning is deterministic (statistics and a graph, not a black box), and on top of it an optional,
+explainable machine-learning layer adds one more signal (see below).
 
 Every case it works adds facts to that memory:
 
@@ -113,15 +114,42 @@ both more confident and more trustworthy.
 
 Two design choices make that learning hold up in the real world:
 
-- **It stays explainable.** The intelligence is deterministic statistics and a graph: z-scores
+- **It stays explainable.** The core reasoning is deterministic statistics and a graph: z-scores
   against an asset's own history, and an unprecedented-edge check against the learned topology. Every
   number is auditable (for example, *240 failed logins against a baseline of about 5 is a clear
-  outlier*), which matters enormously in security and compliance. There is no opaque model whose
-  verdict you cannot defend.
+  outlier*), which matters enormously in security and compliance. Even the optional ML layer below
+  reports the features that drove its score, so no verdict is a mystery number.
 - **Its memory survives IP churn.** It keys everything on a stable identity (hostname, agent, or
   asset id) and treats the IP as a live pointer. The history it learned about a host is not thrown
   away when DHCP hands out a new lease, a container restarts, or a cloud box autoscales, which is the
   exact thing that breaks naive IP-based tooling.
+
+---
+
+## The explainable ML anomaly layer (optional)
+
+The per-host statistics above catch single-metric anomalies. To catch unusual *combinations* of
+behavior at once, CerberusAI can run an optional, **explainable** machine-learning layer: a UEBA-style
+anomaly-detection **ensemble** of an **Isolation Forest** and an **autoencoder**, trained unsupervised
+on the behavior it has observed. It produces an anomaly score plus the features that drove it, and the
+agent treats that as **one more signal, never the final say**. The deterministic core still makes the
+verdict.
+
+It keeps the auditability story: every score comes with feature attributions (which behaviors pushed
+it up), so it is not a black box. On a held-out evaluation against normal traffic mixed with synthetic
+attacks (reproduce with `python -m ml.evaluate`):
+
+| Model | ROC-AUC | Precision | Recall | F1 |
+|-------|:------:|:--------:|:-----:|:--:|
+| Isolation Forest | 0.995 | 0.954 | 0.988 | 0.971 |
+| Autoencoder | 0.988 | 0.956 | 0.912 | 0.933 |
+| **Ensemble** | **0.996** | **0.988** | **0.958** | **0.973** |
+
+![ROC curves for the anomaly models](docs/ml_roc.png)
+
+The ensemble beats either model alone, which is why they are combined. Details, feature set, training,
+and retraining on your real traffic are in [`ml/README.md`](ml/README.md). The layer is entirely
+optional (`pip install -r requirements-ml.txt`); without it, CerberusAI runs exactly as before.
 
 ---
 
@@ -232,7 +260,8 @@ changes.
 
 Python 3.12 · FastAPI and Uvicorn · Pydantic v2 (structured outputs) · LiteLLM (provider-agnostic) ·
 Model Context Protocol · SQLite (self-growing memory) · OpenSearch and KQL SIEM adapters ·
-Docker and Caddy (HTTPS) · PBKDF2 auth with role-based access.
+scikit-learn and PyTorch (optional anomaly-detection ensemble) · Docker and Caddy (HTTPS) ·
+PBKDF2 auth with role-based access.
 
 ## License
 

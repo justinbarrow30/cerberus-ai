@@ -103,6 +103,26 @@ v2 = VerifiedVerdict(
     ],
     confidence=0.9,
 )
+# If the optional ML layer is installed, fold its REAL output into the evidence so the
+# demo reflects the behavioral model actually scoring this activity (not a canned line).
+try:
+    from ml.runtime import score_activity
+    _HUMAN = {"new_target_ratio": "a never-before-seen destination",
+              "distinct_targets": "fan-out to many hosts", "failed_auths": "the failed-login volume",
+              "successful_auths": "zero successful logins", "events_per_min": "an elevated request rate",
+              "off_hours": "off-hours timing", "failed_ratio": "an all-failure login pattern",
+              "distinct_rules": "a spread of alert types"}
+    _ba = score_activity({"failed_auth_count": 37, "successful_auth_count": 0,
+                          "targets_contacted": ["secure-db"], "top_rules": [1, 2],
+                          "total_alerts": 39, "window_minutes": 60,
+                          "new_target_ratio": 1.0, "off_hours": 0})
+    if _ba:
+        _label = "ensemble of Isolation Forest + autoencoder" if "autoencoder" in _ba["models"] else "Isolation Forest"
+        _drv = ", ".join(_HUMAN.get(d["feature"], d["feature"]) for d in _ba["top_drivers"][:2])
+        v2.evidence.insert(2, f"Behavioral anomaly model agrees: {_ba['percentile']:.0%}-percentile anomalous "
+                              f"vs the environment's learned normal ({_label}), driven by {_drv}")
+except Exception:
+    pass
 trace2 = [
     {"kind": "alert", "label": "Alert received",
      "detail": f"Wazuh (agent 'secure-db'): repeated SSH authentication failures on secure-db from source {PIVOT}"},
