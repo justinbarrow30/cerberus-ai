@@ -39,6 +39,8 @@ distribution**, which makes the two comparable; the ensemble is their mean. A sc
 
 ## Evaluation
 
+### 1. Synthetic benchmark (method check, not performance)
+
 Trained unsupervised on normal behavior, then scored on a held-out mix of normal +
 synthetic attacks (brute force, lateral spread, off-hours stealth, blended). The
 distributions deliberately overlap, so the task is non-trivial. Reproduce with
@@ -50,11 +52,35 @@ distributions deliberately overlap, so the task is non-trivial. Reproduce with
 | Autoencoder | 0.988 | 0.989 | 0.956 | 0.912 | 0.933 |
 | **Ensemble** | **0.996** | **0.997** | **0.988** | **0.958** | **0.973** |
 
-<sub>Precision/recall at a 95th-percentile threshold (flag anything more anomalous than
-95% of normal). The ensemble beats either model alone, which is the point of combining
-them.</sub>
+<sub>Precision/recall at a 95th-percentile threshold. The ensemble beats either model
+alone, which is the point of combining them.</sub>
 
 ![ROC curves](../docs/ml_roc.png)
+
+**Be honest about what this is.** The attacks and the normal traffic are both
+generated here, so these numbers prove the *method and the pipeline work*, not that the
+models perform well on real traffic. A high score on your own synthetic data is not
+evidence of real-world performance.
+
+### 2. Real labeled data: LANL auth + red team
+
+`ml/eval_lanl.py` runs the same ensemble against the Los Alamos "Comprehensive
+Multi-Source Cyber-Security Events" dataset: real enterprise authentication logs
+(`auth.txt`) with real red-team compromise events (`redteam.txt`). It buckets auth into
+per-source-computer time windows, aggregates the same features, labels a window
+malicious if it contains a red-team event, trains unsupervised on benign windows, and
+scores held-out benign + malicious windows.
+
+```bash
+# get the data (accept the license): https://csr.lanl.gov/data/cyber1/
+python -m ml.eval_lanl --auth auth.txt.gz --redteam redteam.txt
+python -m ml.eval_lanl --auth auth.txt.gz --redteam redteam.txt --limit 20000000  # a slice
+```
+
+Status: the pipeline is implemented and verified end-to-end on a small LANL-format
+sample. Real numbers require the dataset (it is multi-GB and license-gated, so it is not
+vendored here). This is the evaluation that actually measures the model; the synthetic
+one above is only a sanity check.
 
 ## Running it
 

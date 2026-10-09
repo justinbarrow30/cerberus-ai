@@ -7,15 +7,12 @@ to run them at full strength. CerberusAI closes that gap. It plugs into your SIE
 you choose, and continuously reads your alert traffic to build a live baseline of how your network
 actually behaves. The moment your SIEM flags something, it investigates on its own: it checks the
 alert against that baseline, pulls the device's history, decides whether the behavior is normal, and
-returns an auto-close or escalate verdict with plain-English evidence in seconds. It becomes the most
-knowledgeable analyst on the team, one that never sleeps and never forgets.
+returns an auto-close or escalate verdict with plain-English evidence in seconds.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-E11A0F.svg)
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-2b2b2b.svg)
 ![Posture: read--only](https://img.shields.io/badge/posture-read--only-2e7d32.svg)
 ![Bring your own LLM](https://img.shields.io/badge/LLM-bring%20your%20own-444.svg)
-
-> Not a lab toy or a simulator. You connect it to **your own** SIEM and it starts working.
 
 ![CerberusAI operations console](docs/console.png)
 
@@ -136,8 +133,10 @@ agent treats that as **one more signal, never the final say**. The deterministic
 verdict.
 
 It keeps the auditability story: every score comes with feature attributions (which behaviors pushed
-it up), so it is not a black box. On a held-out evaluation against normal traffic mixed with synthetic
-attacks (reproduce with `python -m ml.evaluate`):
+it up), so it is not a black box.
+
+On a **synthetic** benchmark (`python -m ml.evaluate`) the ensemble reaches 0.996 ROC-AUC and 0.97 F1,
+beating either model alone:
 
 | Model | ROC-AUC | Precision | Recall | F1 |
 |-------|:------:|:--------:|:-----:|:--:|
@@ -147,9 +146,13 @@ attacks (reproduce with `python -m ml.evaluate`):
 
 ![ROC curves for the anomaly models](docs/ml_roc.png)
 
-The ensemble beats either model alone, which is why they are combined. Details, feature set, training,
-and retraining on your real traffic are in [`ml/README.md`](ml/README.md). The layer is entirely
-optional (`pip install -r requirements-ml.txt`); without it, CerberusAI runs exactly as before.
+But a high score on data generated here only proves the method, not real-world performance. The real
+test is [`ml/eval_lanl.py`](ml/eval_lanl.py), which runs the same ensemble against the **Los Alamos
+auth logs with real red-team events** (`auth.txt` + `redteam.txt`). That harness is implemented and
+verified on a sample; running it on the full dataset (multi-GB, license-gated) is the evaluation that
+actually counts. Details, feature set, and retraining on your own traffic are in
+[`ml/README.md`](ml/README.md). The layer is entirely optional (`pip install -r requirements-ml.txt`);
+without it, CerberusAI runs exactly as before.
 
 ---
 
