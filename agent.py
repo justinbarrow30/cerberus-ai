@@ -52,6 +52,13 @@ SYSTEM_PROMPT = (
     "query_siem also returns a `statistical_baseline` — a deterministic anomaly score "
     "computed in code comparing the current failure volume to this asset's own history "
     "(e.g. '12σ above normal'). Treat it as hard, non-negotiable evidence, not opinion. "
+    "query_siem may also attach a `behavioral_anomaly` score from an ML model (an anomaly "
+    "percentile plus its top contributing features). Treat it as SUPPORTING evidence only: it "
+    "has higher recall but lower precision than the deterministic checks, so it must NEVER move "
+    "an otherwise-clean case to escalate on its own. When the deterministic signals are clear, "
+    "they decide; a high ML score with clean deterministic evidence means monitor or a closer "
+    "look, not escalate. The ML score carries real weight only when the deterministic picture is "
+    "genuinely ambiguous, and you always cite it with its drivers. "
     "query_siem also returns which targets the source contacted. (2) For a contacted "
     "target outside the source's normal pattern, call check_topology_drift(source, target): "
     "an UNPRECEDENTED edge — a source reaching a host it has never reached before — is the "
@@ -61,7 +68,9 @@ SYSTEM_PROMPT = (
     "Hard rules: strictly read-only — never propose changing system state. Every claim "
     "must be supported by evidence you actually retrieved (from tools or memory); if the "
     "evidence is insufficient, escalate rather than invent. Choose auto_close ONLY when "
-    "evidence positively shows no compromise occurred."
+    "evidence positively shows no compromise occurred. The deterministic signals (baseline, "
+    "topology drift, successful logins, prior verdicts) are primary and make the verdict; the "
+    "ML behavioral_anomaly is supporting evidence and is never the sole basis to escalate."
 )
 
 _TOOL_DEFS = [
